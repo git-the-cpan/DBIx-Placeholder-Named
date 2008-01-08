@@ -1,5 +1,6 @@
-Revision history for Tao-DBI
+Revision history for DBIx::Placeholder::Named
 
-0.05
-		First public version.
+0.07
+		Added 'PlaceholderPrefix' and 'PlaceholderSuffix' parameters.
+
 

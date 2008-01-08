@@ -1,23 +1,15 @@
 use strict;
 use warnings;
 
-use Test::More qw(no_plan);
+use Test::More tests => 18;
 
 my $dbname = '/tmp/dbix-placeholder-named-test.db';
 
-BEGIN {
-    use_ok('DBIx::Placeholder::Named');
-}
+use_ok('DBIx::Placeholder::Named');
 
 END {
     unlink $dbname if -f $dbname;
 }
-
-$DBIx::Placeholder::Named::PREFIX = '';
-$DBIx::Placeholder::Named::SUFFIX = '__';
-
-is($DBIx::Placeholder::Named::PREFIX, '');
-is($DBIx::Placeholder::Named::SUFFIX, '__');
 
 my $dbh = DBIx::Placeholder::Named->connect(
     "dbi:SQLite:dbname=$dbname",
@@ -26,6 +18,8 @@ my $dbh = DBIx::Placeholder::Named->connect(
         PrintError         => undef,
         RaiseError         => undef,
         ShowErrorStatement => undef,
+        PlaceholderPrefix  => '',
+        PlaceholderSuffix  => '__',
     }
 );
 ok($dbh);
@@ -47,7 +41,7 @@ ok($dbh);
 {
     my $query = q{SELECT * FROM test WHERE id = id__};
     my $sth   = $dbh->prepare($query);
-    ok( $sth, $query );
+    ok( $sth, $query . ( $dbh->errstr ? ": " . $dbh->errstr : "" ) );
     my $rv = $sth->execute( {} );
     is( $rv, '0E0' );
 }

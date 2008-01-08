@@ -1,13 +1,11 @@
 use strict;
 use warnings;
 
-use Test::More qw(no_plan);
+use Test::More tests => 18;
 
 my $dbname = '/tmp/dbix-placeholder-named-test.db';
 
-BEGIN {
-    use_ok('DBIx::Placeholder::Named');
-}
+use_ok('DBIx::Placeholder::Named');
 
 END {
     unlink $dbname if -f $dbname;

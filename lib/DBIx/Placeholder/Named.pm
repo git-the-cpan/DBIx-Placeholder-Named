@@ -1,14 +1,62 @@
-# $Id: $
-
 package DBIx::Placeholder::Named;
 
 use warnings;
 use strict;
 
 use base qw(DBI);
-our $VERSION = '0.06';
+
+our $VERSION = '0.07';
 our $PREFIX  = ':';
 our $SUFFIX  = '';
+
+use constant {
+    ATTR       => 3,
+    OLD_DRIVER => 4,
+};
+
+sub connect {
+    my ( $class, @args ) = @_;
+
+    my ( $prefix, $suffix );
+
+    if ( $args[ATTR] and ref( $args[ATTR] ) eq 'HASH' ) {
+        $prefix = delete $args[ATTR]{PlaceholderPrefix}
+          if ( exists $args[ATTR]{PlaceholderPrefix} );
+        $suffix = delete $args[ATTR]{PlaceholderSuffix}
+          if ( exists $args[ATTR]{PlaceholderSuffix} );
+    }
+
+    my $self = $class->SUPER::connect(@args);
+
+    $self->{private_dbix_placeholder_named_info}{prefix} =
+      defined $prefix ? $prefix : ':';
+    $self->{private_dbix_placeholder_named_info}{suffix} =
+      defined $suffix ? $suffix : '';
+
+    return $self;
+}
+
+sub connect_cached {
+    my ( $class, @args ) = @_;
+
+    my ( $prefix, $suffix );
+
+    if ( $args[ATTR] and ref( $args[ATTR] ) eq 'HASH' ) {
+        $prefix = delete $args[ATTR]{PlaceholderPrefix}
+          if ( exists $args[ATTR]{PlaceholderPrefix} );
+        $suffix = delete $args[ATTR]{PlaceholderSuffix}
+          if ( exists $args[ATTR]{PlaceholderSuffix} );
+    }
+
+    my $self = $class->SUPER::connect_cached(@args);
+
+    $self->{private_dbix_placeholder_named_info}{prefix} =
+      defined $prefix ? $prefix : ':';
+    $self->{private_dbix_placeholder_named_info}{suffix} =
+      defined $suffix ? $suffix : '';
+
+    return $self;
+}
 
 package DBIx::Placeholder::Named::db;
 
@@ -29,12 +77,15 @@ sub prepare {
     my @placeholders;
     my @query_tokens = SQL::Tokenizer->tokenize($query);
 
-    my $prefix_length = length($PREFIX);
-    my $suffix_length = length($SUFFIX);
+    my $prefix = $dbh->{private_dbix_placeholder_named_info}{prefix};
+    my $suffix = $dbh->{private_dbix_placeholder_named_info}{suffix};
+
+    my $prefix_length = length($prefix);
+    my $suffix_length = length($suffix);
 
     foreach my $token (@query_tokens) {
         my $token_length = length($token);
-        if ( substr( $token, 0, $prefix_length ) eq $PREFIX and substr( $token, $token_length - $suffix_length, $suffix_length ) eq $SUFFIX ) {
+        if ( substr( $token, 0, $prefix_length ) eq $prefix and substr( $token, $token_length - $suffix_length, $suffix_length ) eq $suffix ) {
             my $token_stripped = substr( $token, $prefix_length );
             $token_stripped = substr( $token_stripped, 0, length($token_stripped) - $suffix_length );
             push @placeholders, $token_stripped;
@@ -51,7 +102,8 @@ sub prepare {
       or return;
 
     # we can now store the named placeholders array.
-    $sth->{private_dbix_placeholder_named_info} = { placeholders => \@placeholders };
+    $sth->{private_dbix_placeholder_named_info} =
+      { placeholders => \@placeholders };
 
     return $sth;
 }
@@ -104,13 +156,14 @@ DBIx::Placeholder::Named - DBI with named placeholders
 
   my $sth = $dbh->prepare(
     q{ INSERT INTO some_table (this, that) VALUES (:this, :that) }
-  );
+  )
     or die $dbh->errstr;
 
   $sth->execute({ this => $this, that => $that, });
 
-  $DBIx::Placeholder::Named::PREFIX = '__';
-  $DBIx::Placeholder::Named::SUFFIX = '**';
+  $dbh =
+    DBIx::Placeholder::Named->connect( $dsn, $user, $password,
+      { PlaceholderPrefix => '__', PlaceholderSuffix => '**' } );
 
   my $sth = $dbh->prepare(
     q{ INSERT INTO some_table (this, that) VALUES (__this**, __that**) }
@@ -121,29 +174,35 @@ DBIx::Placeholder::Named - DBI with named placeholders
 DBIx::Placeholder::Named is a subclass of DBI, which implements the ability 
 to understand named placeholders.
 
-=head1 VARIABLES
-
-=over 4
-
-=item $DBIx::Placeholder::Named::PREFIX
-
-This variable holds the placeholder's prefix, being set to ':' by default. You 
-can override it like this:
-
-  $DBIx::Placeholder::Named::PREFIX = '__';
-
-=item $DBIx::Placeholder::Named::SUFFIX
-
-This variable holds the placeholder's suffix, being set to '' by default. You
-can override it like this:
-
-  $DBIx::Placeholder::Named::SUFFIX = '**';
-
-=back
-
 =head1 METHODS
 
 =over 4
+
+=item DBIx::Placeholder::Named::connect()
+
+This method, overloaded from L<DBI|DBI>, is responsible to create a
+new connection to database. It is overloaded to accept new keywords
+within the C<$attr> hash.
+
+  my $dbh =
+    DBIx::Placeholder::Named->connect( $dsn, $user, $password,
+      { RaiseError => 1, PlaceholderSuffix => '', PlaceholderPrefix => ':', } );
+
+By default, C<PlaceholderPrefix> is C<:> and C<PlaceholderSuffix> is
+empty string.
+
+=item DBIx::Placeholder::Named::connect_cached()
+
+This method, overloaded from L<DBI|DBI>, is responsible to create a
+cached connection to database. It is overloaded to accept new keywords
+within the C<$attr> hash.
+
+  my $dbh =
+    DBIx::Placeholder::Named->connect_cached( $dsn, $user, $password,
+      { RaiseError => 1, PlaceholderSuffix => '', PlaceholderPrefix => ':', } );
+
+By default, C<PlaceholderPrefix> is C<:> and C<PlaceholderSuffix> is
+empty string.
 
 =item DBIx::Placeholder::Named::db::prepare()
 
@@ -162,6 +221,10 @@ inside quotes or double quotes, etc).
 =back
 
 =cut
+
+=head1 THANKS
+
+Gabor Szabo <szabgab@gmail.com> for requesting prefix support.
 
 =head1 AUTHOR
 
