@@ -5,7 +5,7 @@ use strict;
 
 use base qw(DBI);
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 our $PREFIX  = ':';
 our $SUFFIX  = '';
 
@@ -77,17 +77,25 @@ sub prepare {
     my @placeholders;
     my @query_tokens = SQL::Tokenizer->tokenize($query);
 
-    my $prefix = $dbh->{private_dbix_placeholder_named_info}{prefix};
-    my $suffix = $dbh->{private_dbix_placeholder_named_info}{suffix};
+    my $prefix = $DBIx::Placeholder::Named::PREFIX;
+    my $suffix = $DBIx::Placeholder::Named::SUFFIX;
+
+    if ( exists $dbh->{private_dbix_placeholder_named_info} ) {
+        $prefix = $dbh->{private_dbix_placeholder_named_info}{prefix};
+        $suffix = $dbh->{private_dbix_placeholder_named_info}{suffix};
+    }
 
     my $prefix_length = length($prefix);
     my $suffix_length = length($suffix);
 
     foreach my $token (@query_tokens) {
         my $token_length = length($token);
-        if ( substr( $token, 0, $prefix_length ) eq $prefix and substr( $token, $token_length - $suffix_length, $suffix_length ) eq $suffix ) {
+        if (    substr( $token, 0, $prefix_length ) eq $prefix
+            and substr( $token, $token_length - $suffix_length, $suffix_length ) eq $suffix )
+        {
             my $token_stripped = substr( $token, $prefix_length );
-            $token_stripped = substr( $token_stripped, 0, length($token_stripped) - $suffix_length );
+            $token_stripped =
+              substr( $token_stripped, 0, length($token_stripped) - $suffix_length );
             push @placeholders, $token_stripped;
             $token = '?';
         }
